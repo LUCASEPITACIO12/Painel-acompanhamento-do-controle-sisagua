@@ -1,0 +1,10 @@
+# CSV baixados do portal: grandes e baixados de novo pelo atualizar.py
+dados/
+# Arquivos gerados para o painel: trazem nomes de responsáveis, alguns de pessoas físicas
+saida/
+__pycache__/
+*.pyc
+.venv/
+venv/
+.DS_Store
+Thumbs.db
