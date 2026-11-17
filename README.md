@@ -1,4 +1,4 @@
-# Painel SISAGUA Alagoas: quem já alimentou o controle da qualidade da água
+# Painel Acompanhamento do Controle SISAGUA Alagoas: quem já alimentou o controle da qualidade da água
 
 Painel para acompanhar se os responsáveis por sistemas (SAA) e soluções alternativas coletivas (SAC) de abastecimento de água em Alagoas estão enviando ao SISAGUA as análises de controle da qualidade da água exigidas pela Portaria GM/MS nº 888/2021, e qual mês ainda falta alimentar.
 
