@@ -1,8 +1,8 @@
-# Painel Acompanhamento do Controle SISAGUA Alagoas: quem já alimentou o controle da qualidade da água
+# Painel SISAGUA Alagoas: quem já alimentou o controle da qualidade da água
 
 Painel para acompanhar se os responsáveis por sistemas (SAA) e soluções alternativas coletivas (SAC) de abastecimento de água em Alagoas estão enviando ao SISAGUA as análises de controle da qualidade da água exigidas pela Portaria GM/MS nº 888/2021, e qual mês ainda falta alimentar.
 
-Este repositório guarda o código. Os dados são baixados do Portal de Dados Abertos do SUS cada vez que o script roda.
+Este repositório guarda o código. Os dados são baixados do Portal de Dados Abertos do SUS cada vez que o script roda. O painel é publicado no GitHub Pages e se atualiza sozinho toda semana (veja "Painel no GitHub Pages").
 
 ## O que o painel mostra
 
@@ -46,11 +46,14 @@ Regras da Portaria GM/MS nº 888/2021 usadas: Art. 4º e 14 (quem envia), Art. 2
 ## Estrutura
 
 ```
-atualizar.py        baixa os dados, filtra Alagoas e gera os arquivos do painel
-painel/index.html   página do painel (roda dentro do painel de dados do Claude)
-requirements.txt    dependências do Python
-dados/              CSV de Alagoas baixados do portal (criada pelo script, fora do Git)
-saida/              arquivos JSON para o painel (criada pelo script, fora do Git)
+atualizar.py                     baixa os dados, filtra Alagoas e gera os arquivos do painel
+painel/index.html                página do painel (a mesma no Claude e no GitHub Pages)
+pages/casca.html                 moldura da página para o GitHub Pages
+pages/dash.js                    funções do painel de dados do Claude que a página usa, para rodar fora dele
+.github/workflows/publicar.yml   roda o script e publica o painel no GitHub Pages
+requirements.txt                 dependências do Python
+dados/                           CSV de Alagoas baixados do portal (criada pelo script, fora do Git)
+saida/                           arquivos JSON para o painel (criada pelo script, fora do Git)
 ```
 
 ## Como instalar
@@ -86,7 +89,7 @@ Para só recalcular com os arquivos que já estão em `dados/`, sem baixar nada:
 python atualizar.py --sem-baixar
 ```
 
-## Como pôr os dados novos no painel
+## Como pôr os dados novos no painel do Claude
 
 O painel fica no Claude, como um painel de dados. Depois de rodar o script:
 
@@ -95,47 +98,32 @@ O painel fica no Claude, como um painel de dados. Depois de rodar o script:
 
 Ou peça ao Claude para fazer a troca.
 
-## Sobre a página `painel/index.html`
+## Painel no GitHub Pages
 
-A página usa o ambiente do painel de dados do Claude (`dash.data`, `dash.calc`, `dash.draw`) e lê os arquivos anexados a ele. Ela não abre sozinha num navegador nem no GitHub Pages. Uma versão estática para o GitHub Pages é possível, mas publicaria os arquivos de `saida/`, que trazem nomes de responsáveis (veja abaixo).
+O arquivo `.github/workflows/publicar.yml` faz o GitHub, a cada execução:
+
+1. rodar `python atualizar.py`, que busca os dados no portal (cerca de 1,7 GB, uns 5 a 10 minutos);
+2. montar a pasta `site/` com a página (`pages/casca.html` + `painel/index.html` + `pages/dash.js`) e os quatro arquivos de `saida/`;
+3. publicar essa pasta no GitHub Pages.
+
+Ele roda toda segunda-feira às 6h17 (horário de Alagoas), quando alguém altera a página, o script ou o próprio fluxo, e quando você aperta **Run workflow** na aba **Actions**.
+
+Para ligar, uma vez só:
+
+1. Em **Settings > Pages**, em **Build and deployment > Source**, escolha **GitHub Actions**.
+2. Na conta gratuita do GitHub, o Pages só funciona com repositório público. Se o seu estiver privado, mude em **Settings > General > Danger Zone > Change visibility**.
+3. Na aba **Actions**, abra **Publicar painel no GitHub Pages** e clique em **Run workflow**.
+
+O endereço aparece no fim da execução e em **Settings > Pages**. Ele segue o formato `https://SEU-USUARIO.github.io/NOME-DO-REPOSITORIO/`.
+
+Se uma execução falhar (por exemplo, com o portal fora do ar), o site continua com a versão anterior, e o GitHub avisa conforme as suas configurações de notificação.
 
 ## O que fica fora do Git e por quê
 
 - `dados/`: são cerca de 200 MB de CSV, baixados de novo pelo script a qualquer momento.
-- `saida/`: trazem os nomes dos responsáveis como o Ministério da Saúde publica. Alguns são pessoas físicas (por exemplo, microempreendedores), e certos nomes de empresa incluem números que parecem CPF. Por isso não ficam num repositório que pode ser público. Gere de novo com o script.
+- `saida/` e `site/`: são gerados a cada execução. O GitHub monta tudo na hora de publicar, sem guardar os dados no repositório.
 
-## Automação opcional com GitHub Actions
-
-Dá para o GitHub rodar o script todo mês e guardar os arquivos gerados como artefato da execução, por um tempo limitado. Para isso, crie o arquivo `.github/workflows/atualizar.yml` com:
-
-```yaml
-name: Atualizar dados do SISAGUA
-on:
-  schedule:
-    - cron: "0 9 20 * *"   # todo dia 20, 9h UTC (6h em Alagoas)
-  workflow_dispatch:        # permite rodar na mão pela aba Actions
-jobs:
-  atualizar:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - run: pip install -r requirements.txt
-      - run: python atualizar.py
-      - uses: actions/upload-artifact@v4
-        with:
-          name: saida-painel
-          path: saida/
-```
-
-Cuidados:
-
-- O GitHub não troca os arquivos dentro do painel do Claude. Baixe o artefato da execução e substitua as fontes, ou peça ao Claude.
-- Como o runner começa vazio, cada execução baixa todos os anos (cerca de 1,7 GB).
-- Num repositório público, os artefatos ficam acessíveis a outras pessoas. Use um repositório privado.
-- Em repositório privado, os minutos de GitHub Actions dependem do seu plano.
+O site publicado é público e mostra os nomes dos responsáveis como o Ministério da Saúde publica nos dados abertos (licença CC BY), inclusive de pessoas físicas, como microempreendedores. O script tira dos nomes os números com formato de CPF que aparecem em alguns cadastros de MEI.
 
 ## Limitações
 
