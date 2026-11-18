@@ -177,6 +177,9 @@ def montar():
     ])[chave + ["nome", "tipo", "municipio", "responsavel", "cnpj"]].drop_duplicates(chave)
     formas = pd.concat([formas, extra.assign(cadastrada=False)]).drop_duplicates(chave)
     formas["responsavel"] = formas.responsavel.fillna("Responsável não informado no cadastro")
+    # alguns nomes de MEI trazem o CPF do titular; o painel é público, então esse número sai
+    for col in ("responsavel", "nome"):
+        formas[col] = formas[col].str.replace(r"\s*\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b", "", regex=True).str.strip()
     formas = (formas.set_index(chave)
               .join(pd.Series(True, index=exig.index.droplevel([3, 4]).unique(), name="tem_plano"))
               .join(abaixo).join(envio).join(semestral.rename("semestral")).reset_index())
@@ -197,6 +200,7 @@ def montar():
 
     # Autoverificação
     assert not formas.duplicated(chave).any() and not cmp.duplicated(chave + ["parametro"]).any()
+    assert not formas.responsavel.str.contains(r"\b\d{11}\b", na=False).any(), "sobrou número com cara de CPF"
     assert (cmp[[f"m{m:02d}" for m in range(1, 13)]].max(axis=1) <= cmp.exigido_mes + 0.01).all()
     assert anexo14(2775) == 5 and anexo14(12679) == 13 and anexo14(63199) == 57 and anexo14(2_000_000) == 344
 
