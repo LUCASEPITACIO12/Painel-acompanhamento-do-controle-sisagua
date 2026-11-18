@@ -215,6 +215,7 @@
     <p class="sg-criterio" data-read lang="pt-BR">
       <b>Enviado</b>: chegaram ao SISAGUA pelo menos 90% das análises mínimas do plano de amostragem naquele mês. <b>Parcial</b>: chegou algum dado, mas menos que isso. <b>Não enviado</b>: nenhum dado no mês.
       <b>Ainda em digitação</b>: os responsáveis lançam os dados depois que o mês termina, então só contam como falta os meses até <b data-draw="corte_txt" data-source="referencia">—</b>, o último em que pelo menos 80% das formas que costumam enviar já tinham mandado dados. Depois dele, mês sem dado completo aparece como “em digitação”.
+      O mínimo vem do plano de amostragem do SISAGUA, calculado pela Portaria a partir do cadastro de cada forma.
     </p>
   </section>
 
@@ -668,7 +669,7 @@
     const linhasForma = (f, s, m) => {
       const linhas = [`${SG.MES[m]}/${ano}: ${SG.NOME[s]}`];
       if (!f.exigido_mes || s === 'X' || s === 'F') return linhas;
-      linhas.push(`${SG.int(f.enviado[m])} de ${SG.int(f.exigido_mes)} análises mínimas`);
+      linhas.push(`${SG.int(f.enviado[m])} de ${SG.int(f.exigido_mes)} análises do plano de amostragem do SISAGUA`);
       if (/[EPd]/.test(s)) {
         for (const g of [...f.grupos].sort((a, b) => ordem.indexOf(a.grupo) - ordem.indexOf(b.grupo))) {
           const [rotulo, completo] = SG.GRUPO[g.grupo];
