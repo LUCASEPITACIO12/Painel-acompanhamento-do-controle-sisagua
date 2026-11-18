@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Painel SISAGUA Alagoas</title>
+<meta name="description" content="Quem já alimentou o controle da qualidade da água no SISAGUA em Alagoas, mês a mês, por responsável e município.">
+<style>
+  html, body { margin: 0; background: #ffffff; }
+  #dash-root { max-width: 1200px; margin: 0 auto; }
+  .dash-select { font: inherit; font-size: 14px; padding: 7px 32px 7px 10px; border: 1px solid #d8e1eb; border-radius: 8px; appearance: none;
+    background: #ffffff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%2355667a' stroke-width='1.6'/%3E%3C/svg%3E") no-repeat right 11px center; }
+  .dash-skeleton { color: transparent !important; background-color: #e9eef3; border-radius: 6px; }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
+<script src="dash.js"></script>
+</head>
+<body>
+<div id="dash-root">
+<!-- PAINEL -->
+</div>
+<script>
+  dash.iniciar(
+    {formas: 'dados/formas.json', cumprimento: 'dados/cumprimento.json', referencia: 'dados/referencia.json', municipios_geo: 'dados/municipios_al.json'},
+    {ano: null, mun: null, param: null, resp: null, tipo: null},
+  );
+</script>
+</body>
+</html>
