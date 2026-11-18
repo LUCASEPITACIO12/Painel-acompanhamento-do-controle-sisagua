@@ -32,6 +32,10 @@ DADOS, SAIDA = AQUI / "dados", AQUI / "saida"
 BUSCAS = DADOS / "buscas.json"  # quando cada arquivo foi buscado e quando o portal o publicou
 HOJE = dt.date.today()
 ANOS = range(ANO_INICIAL, HOJE.year + 1)
+PONTO = {  # ponto de monitoramento -> grupo mostrado no painel
+    "SAÍDA DO TRATAMENTO": "saida", "Saída do tratamento (para água canalizada)": "saida",
+    "Pós-filtração ou Pré-desinfecção": "filtro", "SISTEMA DE DISTRIBUIÇÃO": "rede", "PONTO DE CONSUMO": "rede",
+}
 PARAM = {  # nome no controle mensal -> nome no plano de amostragem
     "Cloro Residual Livre (mg/L)": "Residual de Desinfetante",
     "Cloro Residual Combinado (mg/L)": "Residual de Desinfetante",
@@ -99,17 +103,19 @@ def num(s):
     return pd.to_numeric(s.str.replace(",", ".", regex=False), errors="coerce")
 
 
-def anexo14(pop):
+def anexo14(pop, para_cima=True):
     """Nº mínimo mensal de amostras bacteriológicas no sistema de distribuição de SAA (Anexo 14, retificado).
-    "1 para cada N habitantes" arredondado para cima."""
+    A Portaria não diz como arredondar "1 para cada N habitantes"; para_cima escolhe o sentido."""
+    def por_hab(n):
+        return -(-pop // n) if para_cima else pop // n
     if pop < 5_000:
         return 5
     for teto, base, por in [(10_000, 10, 0), (50_000, 0, 1_000), (80_000, 25, 2_000), (130_000, 1, 1_250),
                             (250_000, 40, 2_000), (340_000, 115, 5_000), (400_000, 47, 2_500),
                             (600_000, 127, 5_000), (1_140_000, 187, 10_000)]:
         if pop <= teto:
-            return base + (-(-pop // por) if por else 0)
-    return min(244 + -(-pop // 20_000), 400)
+            return base + (por_hab(por) if por else 0)
+    return min(244 + por_hab(20_000), 400)
 
 
 def montar():
@@ -142,8 +148,10 @@ def montar():
              & (pl.PARAMETRO == "Coliformes totais") & (pl.CAMPO == "Número de Análises")]
     a14 = a14.assign(n=num(a14.VALOR), pop=num(a14.POP_ABASTECIDA_ESTIMADA)).dropna(subset=["n", "pop"])
     a14 = a14.groupby(chave).agg(n=("n", "max"), pop=("pop", "max"))
-    a14["minimo_anexo14"] = a14["pop"].astype(int).map(anexo14)
-    abaixo = (a14.n < a14.minimo_anexo14).rename("plano_abaixo_anexo14")
+    # diferença que vem só do arredondamento não conta: compara com o mínimo arredondado para baixo
+    a14["minimo_anexo14"] = a14["pop"].astype(int).map(lambda pop: anexo14(pop, para_cima=False))
+    a14["plano_abaixo_anexo14"] = a14.n < a14.minimo_anexo14
+    a14 = a14.rename(columns={"n": "plano_coliformes_rede", "pop": "populacao_plano"})
 
     # Enviado: controle mensal de parâmetros básicos
     bs = ler("controle_mensal_parametros_basicos")
@@ -159,9 +167,12 @@ def montar():
     # Cumprimento: análises enviadas até o mínimo exigido (o excedente de um mês não cobre outro)
     cmp = real.reindex(exig.index).fillna(0).clip(upper=exig, axis=0)
     cmp["exig"] = exig
-    cmp = cmp.groupby(level=chave + ["PARAMETRO"]).sum().round(2).reset_index()
-    cmp.columns = chave + ["parametro"] + [f"m{m:02d}" for m in range(1, 13)] + ["exigido_mes"]
-    cmp = cmp[chave + ["parametro", "exigido_mes"] + [f"m{m:02d}" for m in range(1, 13)]]
+    cmp = cmp.reset_index()
+    cmp["ponto"] = cmp.PT_MONITORAMENTO.map(PONTO)
+    assert cmp.ponto.notna().all(), f"ponto de monitoramento novo: {set(cmp.PT_MONITORAMENTO[cmp.ponto.isna()])}"
+    cmp = cmp.groupby(chave + ["ponto", "PARAMETRO"])[list(range(1, 13)) + ["exig"]].sum().round(2).reset_index()
+    cmp.columns = chave + ["ponto", "parametro"] + [f"m{m:02d}" for m in range(1, 13)] + ["exigido_mes"]
+    cmp = cmp[chave + ["ponto", "parametro", "exigido_mes"] + [f"m{m:02d}" for m in range(1, 13)]]
 
     # Controle semestral: houve envio no 1º/2º semestre?
     se = ler("controle_semestral").rename(columns={"NU_SOLUCAO_ABASTECIMENTO": "forma"})
@@ -182,7 +193,8 @@ def montar():
         formas[col] = formas[col].str.replace(r"\s*\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b", "", regex=True).str.strip()
     formas = (formas.set_index(chave)
               .join(pd.Series(True, index=exig.index.droplevel([3, 4]).unique(), name="tem_plano"))
-              .join(abaixo).join(envio).join(semestral.rename("semestral")).reset_index())
+              .join(a14[["plano_abaixo_anexo14", "plano_coliformes_rede", "minimo_anexo14", "populacao_plano"]])
+              .join(envio).join(semestral.rename("semestral")).reset_index())
     formas["tem_plano"] = formas.tem_plano.eq(True)
     formas["envio"] = formas.envio.fillna("0" * 12)
     formas["semestral"] = formas.semestral.fillna("00")
@@ -199,10 +211,11 @@ def montar():
     assert ultimo, "série mensal curta demais para achar o último mês completo"
 
     # Autoverificação
-    assert not formas.duplicated(chave).any() and not cmp.duplicated(chave + ["parametro"]).any()
+    assert not formas.duplicated(chave).any() and not cmp.duplicated(chave + ["ponto", "parametro"]).any()
     assert not formas.responsavel.str.contains(r"\b\d{11}\b", na=False).any(), "sobrou número com cara de CPF"
     assert (cmp[[f"m{m:02d}" for m in range(1, 13)]].max(axis=1) <= cmp.exigido_mes + 0.01).all()
     assert anexo14(2775) == 5 and anexo14(12679) == 13 and anexo14(63199) == 57 and anexo14(2_000_000) == 344
+    assert anexo14(12484, para_cima=False) == 12 and anexo14(489, para_cima=False) == 5 and anexo14(8584, para_cima=False) == 10
 
     SAIDA.mkdir(exist_ok=True)
     codigo = Path(__file__).read_text(encoding="utf-8")

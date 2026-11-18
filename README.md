@@ -41,7 +41,7 @@ Portal de Dados Abertos do SUS (dadosabertos.saude.gov.br), conjunto SISAGUA, li
 
 Os limites municipais do mapa vêm do projeto [geodata-br](https://github.com/tbrugz/geodata-br), feito a partir da malha do IBGE. Confira a licença no repositório de origem antes de redistribuir.
 
-Regras da Portaria GM/MS nº 888/2021 usadas: Art. 4º e 14 (quem envia), Art. 28, §3º (turbidez pós-filtração), Art. 42 e 44 (planos de amostragem) e Anexos 13, 14 e 15 (número mínimo de amostras e frequência). O exigido de cada mês é o plano registrado no SISAGUA (total anual ÷ 12, por ponto e parâmetro). Para SAA, o plano de coliformes no sistema de distribuição é conferido com o Anexo 14.
+Regras da Portaria GM/MS nº 888/2021 usadas: Art. 4º e 14 (quem envia), Art. 28, §3º (turbidez pós-filtração), Art. 42 e 44 (planos de amostragem) e Anexos 13, 14 e 15 (número mínimo de amostras e frequência). O exigido de cada mês é o plano registrado no SISAGUA (total anual ÷ 12, por ponto e parâmetro). Para SAA, o plano de coliformes no sistema de distribuição é conferido com o Anexo 14; diferenças que vêm só do arredondamento de “1 para cada N habitantes” não são marcadas.
 
 ## Estrutura
 
@@ -73,7 +73,7 @@ python atualizar.py
 Busca de novo o ano corrente e os cadastros (cerca de 500 MB de download) e só baixa um ano anterior se ele ainda não estiver em `dados/`. Grava em `saida/`:
 
 - `formas.json`: uma linha por forma de abastecimento, município e ano, com os meses em que houve envio.
-- `cumprimento.json`: análises exigidas e enviadas por mês e parâmetro.
+- `cumprimento.json`: análises exigidas e enviadas por mês, ponto de coleta e parâmetro.
 - `referencia.json`: data da busca, data de publicação no portal e último mês fechado.
 - `municipios_al.json`: limites municipais (só na primeira vez).
 

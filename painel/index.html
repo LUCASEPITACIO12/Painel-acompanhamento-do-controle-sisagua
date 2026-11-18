@@ -104,7 +104,7 @@
   .sg-forma .sg-nome { padding-left: 16px; }
   .sg-forma .sg-nome::before { content: ""; }
   .sg-lin .sg-c { justify-self: center; }
-  .sg-tag { font-size: 10.5px; font-weight: 700; padding: 1px 6px; border-radius: 4px; background: var(--st-P-bg); color: var(--st-P); margin-left: 4px; }
+  .sg-tag { font-size: 10.5px; font-weight: 700; padding: 1px 6px; border-radius: 4px; background: var(--st-P-bg); color: var(--st-P); margin-left: 4px; cursor: help; }
   .sg-mapa { position: relative; min-height: 280px; max-width: 760px; }
   .sg-mapa svg { display: block; width: 100%; }
   .sg-mapa path { stroke: #ffffff; stroke-width: .7; cursor: pointer; }
@@ -259,9 +259,9 @@
         <li><b>SAC (Anexo 15).</b> Uma amostra na saída do tratamento e uma a cada 1.000 habitantes no ponto de consumo, com frequência de semanal a diária conforme o parâmetro e o manancial.</li>
         <li><b>Semestral.</b> Água bruta em cada ponto de captação (Art. 42) e “demais parâmetros” dos Anexos 13 e 15. O controle semestral não entra na grade de meses.</li>
       </ul>
-      <p><b>Como o painel calcula.</b> O exigido de cada mês é o plano de amostragem registrado no SISAGUA para o ano (total anual ÷ 12, por ponto e parâmetro, somando as ETA/UTA). Fluoreto só conta onde o cadastro de tratamento informa fluoretação ou desfluoretação. O enviado é o “Número de amostras analisadas” do Controle mensal – Parâmetros básicos, contado até o mínimo de cada ponto. Formas sem plano registrado contam como enviado quando mandam qualquer dado e aparecem com a marca “sem plano”. No mês, o responsável fica “enviado” só quando todas as formas dele estão completas, “não enviado” quando nenhuma mandou dado e “parcial” nos outros casos.</p>
+      <p><b>Como o painel calcula.</b> O exigido de cada mês é o plano de amostragem registrado no SISAGUA para o ano (total anual ÷ 12, por ponto e parâmetro, somando as ETA/UTA). Fluoreto só conta onde o cadastro de tratamento informa fluoretação ou desfluoretação. O enviado é o “Número de amostras analisadas” do Controle mensal – Parâmetros básicos, contado até o mínimo de cada ponto. Formas sem plano registrado contam como enviado quando mandam qualquer dado e aparecem com a marca “sem plano”. Na dica de cada quadrinho, “Bacteriológicas” reúne coliformes totais e <i>E. coli</i> em todos os pontos; “Saída do tratamento”, “Pós-filtração” e “Rede” reúnem turbidez, cor, pH, residual de desinfetante e fluoreto em cada ponto de coleta. No mês, o responsável fica “enviado” só quando todas as formas dele estão completas, “não enviado” quando nenhuma mandou dado e “parcial” nos outros casos.</p>
       <p><b>Bases.</b> Portal de Dados Abertos do SUS (dadosabertos.saude.gov.br), conjunto SISAGUA: População abastecida e Tratamento de água (cadastro), Controle mensal – Plano de amostragem e Controle mensal – Parâmetros básicos (um arquivo por ano, de 2023 em diante). O ano corrente e os cadastros são buscados de novo a cada atualização; os anos anteriores ficam como foram baixados.</p>
-      <p><b>Limites.</b> Uma forma que abastece mais de um município conta em cada um, como no cadastro. Os cortes de 90% para “enviado” e de 80% para “em digitação” são critérios deste painel, porque a Portaria não fixa prazo de envio. Análises lançadas num ponto que não está no plano contam como envio no mês, mas não completam o plano.</p>
+      <p><b>Limites.</b> Uma forma que abastece mais de um município conta em cada um, como no cadastro. Os cortes de 90% para “enviado” e de 80% para “em digitação” são critérios deste painel, porque a Portaria não fixa prazo de envio. Análises lançadas num ponto que não está no plano contam como envio no mês, mas não completam o plano. A marca “plano &lt; Anexo 14” compara as coletas mensais de coliformes na rede previstas no plano com o mínimo do Anexo 14 para a população do próprio plano; “1 para cada N habitantes” é arredondado para baixo, para não marcar diferenças que vêm só do arredondamento.</p>
     </details>
   </section>
 </div>
@@ -288,7 +288,7 @@
   dash.calc('estados', {
     inputs: ['filtradas', 'cumprimento', 'referencia'],
     title: 'Situação de cada forma, mês a mês',
-    description: 'Para o ano escolhido, uma letra por mês para cada forma: E enviado, P parcial, N não enviado, D em digitação sem dados, d em digitação com dados incompletos, X não exigido, F mês que ainda não terminou.',
+    description: 'Para o ano escolhido, uma letra por mês para cada forma: E enviado, P parcial, N não enviado, D em digitação sem dados, d em digitação com dados incompletos, X não exigido, F mês que ainda não terminou. Também as análises exigidas e enviadas por grupo (bacteriológicas, saída do tratamento, pós-filtração, rede).',
     fn: (filtradas, cumprimento, referencia) => {
       const p = dash.params(), ref = referencia[0];
       if (!ref) return [];
@@ -300,9 +300,17 @@
         if (c.ano !== ano || !(c.exigido_mes > 0) || (p.param && c.parametro !== p.param)) continue;
         const k = `${c.forma}|${c.cod_ibge}`;
         let s = soma.get(k);
-        if (!s) soma.set(k, (s = {exig: 0, env: Array(12).fill(0)}));
+        if (!s) soma.set(k, (s = {exig: 0, env: Array(12).fill(0), grupos: {}}));
+        // bacteriológicas juntas; as demais análises pelo ponto de coleta
+        const g = c.parametro === 'Coliformes totais' || c.parametro === 'Escherichia coli' ? 'bact' : c.ponto;
+        const sg = s.grupos[g] || (s.grupos[g] = {exig: 0, env: Array(12).fill(0)});
         s.exig += c.exigido_mes;
-        for (let m = 0; m < 12; m++) s.env[m] += c['m' + String(m + 1).padStart(2, '0')] || 0;
+        sg.exig += c.exigido_mes;
+        for (let m = 0; m < 12; m++) {
+          const v = c['m' + String(m + 1).padStart(2, '0')] || 0;
+          s.env[m] += v;
+          sg.env[m] += v;
+        }
       }
       return filtradas.filter((f) => f.ano === ano).map((f) => {
         const s = soma.get(`${f.forma}|${f.cod_ibge}`);
@@ -318,8 +326,10 @@
         }
         return {chave: `${f.forma}|${f.cod_ibge}`, forma: f.forma, nome: f.nome, tipo: f.tipo, cod_ibge: f.cod_ibge,
           municipio: f.municipio, responsavel: f.responsavel, cnpj: f.cnpj, sem_plano: !f.tem_plano && f.tipo !== 'SAI',
-          plano_abaixo_anexo14: f.plano_abaixo_anexo14 === true, estados,
-          exigido_mes: s ? Math.round(s.exig) : 0, enviado: s ? s.env.map(Math.round) : []};
+          plano_abaixo_anexo14: f.plano_abaixo_anexo14 === true, plano_coliformes_rede: f.plano_coliformes_rede ?? null,
+          minimo_anexo14: f.minimo_anexo14 ?? null, populacao_plano: f.populacao_plano ?? null, estados,
+          exigido_mes: s ? Math.round(s.exig) : 0, enviado: s ? s.env.map(Math.round) : [],
+          grupos: s ? Object.entries(s.grupos).map(([grupo, x]) => ({grupo, exigido_mes: Math.round(x.exig), enviado: x.env.map(Math.round)})) : []};
       });
     },
   });
@@ -410,6 +420,7 @@
     MES: ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'],
     NOME: {E: 'enviado', P: 'envio parcial', N: 'não enviado', D: 'ainda em digitação', d: 'ainda em digitação', X: 'não exigido', F: 'mês ainda não terminou'},
     SIMB: {E: '✓', P: '½', N: '✕', D: '…', d: '…', X: '–', F: ''},
+    GRUPO: {bact: ['Bacteriológicas', 'completas'], saida: ['Saída do tratamento', 'completa'], filtro: ['Pós-filtração', 'completa'], rede: ['Rede', 'completa']},
     int: (v) => (v == null ? '—' : BR.format(',d')(v)),
     mes: (s) => { const [a, m] = s.split('-'); return `${SG.MES[+m - 1]}/${a}`; },
     cnpj: (c) => (c && c.length === 14 ? `${c.slice(0, 2)}.${c.slice(2, 5)}.${c.slice(5, 8)}/${c.slice(8, 12)}-${c.slice(12)}` : c || ''),
@@ -646,12 +657,25 @@
     const g = dash.data('grupos'), e = dash.data('estados');
     if (g.status !== 'ok' || e.status !== 'ok') { el.textContent = g.status === 'error' || e.status === 'error' ? 'Falhou ao carregar' : '—'; return; }
     const ano = SG.ano(), porResp = d3.group(e.data, (r) => r.cnpj);
-    const celula = (estado, texto) => {
+    const celula = (estado, linhas) => {
       const c = Object.assign(document.createElement('span'), {className: `sg-c st-${estado}`, textContent: SG.SIMB[estado]});
       c.setAttribute('role', 'cell');
-      c.setAttribute('aria-label', texto);
-      c.dataset.tip = texto;
+      c.setAttribute('aria-label', linhas.join('. '));
+      c.dataset.tip = linhas.join('\n');
       return c;
+    };
+    const ordem = Object.keys(SG.GRUPO);
+    const linhasForma = (f, s, m) => {
+      const linhas = [`${SG.MES[m]}/${ano}: ${SG.NOME[s]}`];
+      if (!f.exigido_mes || s === 'X' || s === 'F') return linhas;
+      linhas.push(`${SG.int(f.enviado[m])} de ${SG.int(f.exigido_mes)} análises mínimas`);
+      if (/[EPd]/.test(s)) {
+        for (const g of [...f.grupos].sort((a, b) => ordem.indexOf(a.grupo) - ordem.indexOf(b.grupo))) {
+          const [rotulo, completo] = SG.GRUPO[g.grupo];
+          linhas.push(`${rotulo}: ${g.enviado[m] >= g.exigido_mes ? completo : `${SG.int(g.enviado[m])} de ${SG.int(g.exigido_mes)}`}`);
+        }
+      }
+      return linhas;
     };
     const cab = Object.assign(document.createElement('div'), {className: 'sg-lin sg-cab'});
     cab.setAttribute('role', 'row');
@@ -669,7 +693,7 @@
         if (c.P) partes.push(`${c.P} parciais`);
         if (c.N) partes.push(`${c.N} sem dados`);
         if (c.D + c.d) partes.push(`${c.D + c.d} em digitação`);
-        return celula(s, `${SG.MES[m]}/${ano}: ${SG.NOME[s]}${partes.length ? ' · ' + partes.join(', ') : ''}`);
+        return celula(s, [`${SG.MES[m]}/${ano}: ${SG.NOME[s]}`, ...(partes.length ? [partes.join(', ')] : [])]);
       }));
       det.append(sum);
       det.addEventListener('toggle', () => {
@@ -679,14 +703,21 @@
           lin.setAttribute('role', 'row');
           const n = Object.assign(document.createElement('span'), {className: 'sg-nome', textContent: `${f.nome} · ${f.municipio} `});
           if (f.sem_plano) n.append(Object.assign(document.createElement('span'), {className: 'sg-tag', textContent: 'sem plano'}));
-          if (f.plano_abaixo_anexo14) n.append(Object.assign(document.createElement('span'), {className: 'sg-tag', textContent: 'plano < Anexo 14'}));
-          lin.append(n, ...[...f.estados].map((s, m) => celula(s, `${SG.MES[m]}/${ano}: ${SG.NOME[s]}` + (f.exigido_mes && /[EPd]/.test(s) ? ` · ${SG.int(f.enviado[m])} de ${SG.int(f.exigido_mes)} análises mínimas` : ''))));
+          if (f.plano_abaixo_anexo14) {
+            const t = Object.assign(document.createElement('span'), {className: 'sg-tag', textContent: 'plano < Anexo 14'});
+            const n1 = f.plano_coliformes_rede;
+            const explica = `O plano pede ${SG.int(n1)} ${n1 === 1 ? 'coleta' : 'coletas'} de coliformes por mês na rede; a Portaria (Anexo 14) pede pelo menos ${SG.int(f.minimo_anexo14)} para ${SG.int(f.populacao_plano)} habitantes.`;
+            t.dataset.tip = `Plano abaixo do mínimo da Portaria\n${explica}`;
+            t.setAttribute('aria-label', `Plano abaixo do mínimo da Portaria. ${explica}`);
+            n.append(t);
+          }
+          lin.append(n, ...[...f.estados].map((s, m) => celula(s, linhasForma(f, s, m))));
           return lin;
         }));
       });
       return det;
     }));
-    el.onpointerover = (ev) => { const c = ev.target.closest('[data-tip]'); dica(el, c ? [['span', c.dataset.tip]] : null, ev); };
+    el.onpointerover = (ev) => { const c = ev.target.closest('[data-tip]'); dica(el, c ? c.dataset.tip.split('\n').map((t, i) => [i ? 'span' : 'strong', t]) : null, ev); };
     el.onpointerleave = () => dica(el, null);
   });
 
