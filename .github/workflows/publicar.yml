@@ -1,0 +1,44 @@
+name: Publicar painel no GitHub Pages
+
+on:
+  schedule:
+    - cron: "17 9 * * 1"   # toda segunda-feira, 9h17 UTC (6h17 em Alagoas)
+  workflow_dispatch:        # botão "Run workflow" na aba Actions
+  push:
+    branches: [main]
+    paths: ["painel/**", "pages/**", "atualizar.py", "requirements.txt", ".github/workflows/publicar.yml"]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - name: Buscar os dados no portal e calcular
+        run: python atualizar.py
+      - name: Montar o site
+        run: |
+          mkdir -p site/dados
+          cp saida/formas.json saida/cumprimento.json saida/referencia.json saida/municipios_al.json site/dados/
+          cp pages/dash.js site/
+          sed '/<!-- PAINEL -->/r painel/index.html' pages/casca.html > site/index.html
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: site
+      - id: deploy
+        uses: actions/deploy-pages@v5
