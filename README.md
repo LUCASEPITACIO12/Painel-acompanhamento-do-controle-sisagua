@@ -47,6 +47,7 @@ Regras da Portaria GM/MS nº 888/2021 usadas: Art. 4º e 14 (quem envia), Art. 2
 
 ```
 atualizar.py                     baixa os dados, filtra Alagoas e gera os arquivos do painel
+ver_local.py                     monta o painel e abre no navegador do seu computador
 painel/index.html                página do painel (a mesma no Claude e no GitHub Pages)
 pages/casca.html                 moldura da página para o GitHub Pages
 pages/dash.js                    funções do painel de dados do Claude que a página usa, para rodar fora dele
@@ -117,6 +118,37 @@ Para ligar, uma vez só:
 O endereço aparece no fim da execução e em **Settings > Pages**. Ele segue o formato `https://SEU-USUARIO.github.io/NOME-DO-REPOSITORIO/`.
 
 Se uma execução falhar (por exemplo, com o portal fora do ar), o site continua com a versão anterior, e o GitHub avisa conforme as suas configurações de notificação.
+
+## Ver no seu computador
+
+Para só ver o painel, abra o endereço do GitHub Pages no navegador. Para rodar no seu computador, por exemplo para testar uma mudança antes de subir:
+
+1. Instale o Python 3.9 ou mais novo (python.org). No Windows, marque **Add python.exe to PATH** na instalação.
+2. Baixe o repositório: no GitHub, **Code > Download ZIP**, e descompacte.
+3. Abra um terminal na pasta descompactada. No Windows, abra a pasta, clique na barra de endereço, digite `cmd` e aperte Enter.
+4. Rode o comando abaixo, trocando pelo endereço do seu site. Se o Windows disser que não conhece `python`, use `py`.
+
+```bash
+python ver_local.py https://SEU-USUARIO.github.io/NOME-DO-REPOSITORIO/
+```
+
+O script baixa os dados já publicados no site, monta a página na pasta `site/` e abre o navegador em `http://localhost:8000/`. Para parar, aperte Ctrl+C no terminal.
+
+Para calcular tudo no seu computador, sem usar os dados do site (baixa cerca de 1,7 GB do portal na primeira vez):
+
+```bash
+pip install -r requirements.txt
+```
+
+```bash
+python atualizar.py
+```
+
+```bash
+python ver_local.py
+```
+
+Abrir o `index.html` com dois cliques não funciona, porque o navegador não deixa a página ler os arquivos de dados direto do disco. O `ver_local.py` resolve isso servindo a pasta num endereço local. A página carrega a biblioteca d3 pela internet, então precisa de conexão.
 
 ## O que fica fora do Git e por quê
 
