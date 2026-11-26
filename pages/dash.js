@@ -53,15 +53,16 @@
     resetParams: () => { params = {...padrao}; redesenhar(); },
     setLink: () => {},
     colors: ['#1f6fae', '#e07b39'],
-    // Busca os arquivos de dados e desenha a página
+    // Busca os arquivos de dados (ou usa os dados já embutidos na página) e desenha a página
     iniciar: (arquivos, parametros) => {
       padrao = {...parametros};
       params = {...parametros};
       for (const id of Object.keys(arquivos)) fontes[id] = {status: 'loading', data: []};
       redesenhar();
       for (const [id, url] of Object.entries(arquivos)) {
-        fetch(url)
-          .then((resp) => { if (!resp.ok) throw new Error(`${url}: ${resp.status}`); return resp.json(); })
+        (typeof url === 'string'
+          ? fetch(url).then((resp) => { if (!resp.ok) throw new Error(`${url}: ${resp.status}`); return resp.json(); })
+          : Promise.resolve(url))
           .then((json) => {
             const r = loaders[id] ? loaders[id]({answer: json}) : {data: json};
             fontes[id] = {status: 'ok', data: r.data, columns: r.columns};
