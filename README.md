@@ -13,6 +13,8 @@ Este repositório guarda o código. Os dados são baixados do Portal de Dados Ab
 - Uma grade de meses por responsável, que abre para mostrar cada forma de abastecimento.
 - Um mapa dos municípios pela parte dos meses fechados que tiveram dados.
 - Busca por município e por responsável (nome ou CNPJ, com ou sem pontuação).
+- Demonstrativo por responsável: o botão "⬇ Demonstrativo" baixa um relatório pronto para imprimir ou salvar em PDF (resumo, situação mês a mês, onde está a falta, outras frequências e base legal), com a planilha mês a mês (CSV) para conferência. Funciona no GitHub Pages e no arquivo único; dentro do Claude o navegador não deixa baixar arquivos.
+- "Outras frequências": envio semestral por grupo de parâmetros (inorgânicos, orgânicos, agrotóxicos, organolépticos, radioatividade e água bruta), produtos secundários da desinfecção por bimestre e análises do manancial mês a mês (E. coli na captação, clorofila-a e cianobactérias). Aqui "enviado" quer dizer que chegou ao menos uma análise do grupo no período; os dados abertos não trazem a lista exigida de cada forma.
 
 Cada mês de cada forma recebe uma situação:
 
@@ -37,7 +39,8 @@ Portal de Dados Abertos do SUS (dadosabertos.saude.gov.br), conjunto SISAGUA, li
 | Tratamento de água (cadastro) | quem faz fluoretação (Anexo 13, nota 2) |
 | Controle mensal – Plano de amostragem | quantas análises são exigidas por mês |
 | Controle mensal – Parâmetros básicos | quantas análises foram enviadas e em que mês |
-| Controle semestral | se houve envio no semestre |
+| Controle semestral | análises semestrais por grupo, com o trimestre e, nos produtos secundários, o bimestre |
+| Controle mensal – Demais parâmetros | análises do manancial: E. coli na captação, cianobactérias, clorofila-a, cianotoxinas |
 
 Os limites municipais do mapa vêm do projeto [geodata-br](https://github.com/tbrugz/geodata-br), feito a partir da malha do IBGE. Confira a licença no repositório de origem antes de redistribuir.
 
@@ -48,6 +51,7 @@ Regras da Portaria GM/MS nº 888/2021 usadas: Art. 4º e 14 (quem envia), Art. 2
 ```
 atualizar.py                     baixa os dados, filtra Alagoas e gera os arquivos do painel
 ver_local.py                     monta o painel e abre no navegador do seu computador
+montar_offline.py                gera o painel num único arquivo .html, que abre sem internet
 painel/index.html                página do painel (a mesma no Claude e no GitHub Pages)
 pages/casca.html                 moldura da página para o GitHub Pages
 pages/dash.js                    funções do painel de dados do Claude que a página usa, para rodar fora dele
@@ -73,7 +77,7 @@ python atualizar.py
 
 Busca de novo o ano corrente e os cadastros (cerca de 500 MB de download) e só baixa um ano anterior se ele ainda não estiver em `dados/`. Grava em `saida/`:
 
-- `formas.json`: uma linha por forma de abastecimento, município e ano, com os meses em que houve envio.
+- `formas.json`: uma linha por forma de abastecimento, município e ano, com os meses em que houve envio, o envio semestral por grupo, os bimestres dos produtos secundários e as análises do manancial.
 - `cumprimento.json`: análises exigidas e enviadas por mês, ponto de coleta e parâmetro.
 - `referencia.json`: data da busca, data de publicação no portal e último mês fechado.
 - `municipios_al.json`: limites municipais (só na primeira vez).
@@ -150,6 +154,20 @@ python ver_local.py
 
 Abrir o `index.html` com dois cliques não funciona, porque o navegador não deixa a página ler os arquivos de dados direto do disco. O `ver_local.py` resolve isso servindo a pasta num endereço local. A página carrega a biblioteca d3 pela internet, então precisa de conexão.
 
+## Painel num arquivo só (sem Python e sem internet)
+
+Para computadores em que não dá para instalar programas ou em que o GitHub Pages está bloqueado, o fluxo do GitHub também publica `painel-offline.html`: o painel inteiro num único arquivo, com os dados e a biblioteca de gráficos dentro.
+
+1. Onde o site abre, baixe `https://SEU-USUARIO.github.io/NOME-DO-REPOSITORIO/painel-offline.html`. No navegador, use **Salvar como** se o arquivo abrir em vez de baixar.
+2. Leve o arquivo para o outro computador (e-mail, pendrive, pasta da rede).
+3. Abra com dois cliques. Funciona sem internet, sem Python e sem servidor.
+
+O arquivo tem cerca de 7 MB e traz os dados do dia em que foi gerado; para dados novos, baixe de novo depois da atualização semanal. Com Python, dá para gerá-lo a partir da pasta `saida/`:
+
+```bash
+python montar_offline.py
+```
+
 ## O que fica fora do Git e por quê
 
 - `dados/`: são cerca de 200 MB de CSV, baixados de novo pelo script a qualquer momento.
@@ -160,6 +178,6 @@ O site publicado é público e mostra os nomes dos responsáveis como o Ministé
 ## Limitações
 
 - Uma forma que abastece mais de um município conta em cada um, como no cadastro do SISAGUA.
-- O controle semestral só confere se houve envio, não se vieram todos os parâmetros.
+- Nas outras frequências, o painel só confere se houve envio de cada grupo no período, não se vieram todos os parâmetros: a exigência depende de condições que os dados abertos não trazem (uso de agrotóxicos na bacia, polímeros, contagem de cianobactérias).
 - Análises lançadas num ponto de monitoramento fora do plano contam como envio no mês, mas não completam o plano.
 - O plano de amostragem de 2022 usa outro formato de campos, por isso o painel começa em 2023.
