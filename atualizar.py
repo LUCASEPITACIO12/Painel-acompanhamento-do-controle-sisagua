@@ -36,6 +36,11 @@ PONTO = {  # ponto de monitoramento -> grupo mostrado no painel
     "SAÍDA DO TRATAMENTO": "saida", "Saída do tratamento (para água canalizada)": "saida",
     "Pós-filtração ou Pré-desinfecção": "filtro", "SISTEMA DE DISTRIBUIÇÃO": "rede", "PONTO DE CONSUMO": "rede",
 }
+GRUPO_SEM = {  # grupo do controle semestral -> coluna do painel (água tratada); o ponto de captação vira "bruta"
+    "Substâncias Inorgânicas": "inorg", "Substâncias Orgânicas": "org", "Agrotóxicos": "agro",
+    "Parâmetros Organolépticos": "organol", "Radioatividade": "radio",
+}
+BIT_MANANCIAL = {"Escherichia coli": 1, "Cianobactérias": 2, "Clorofila-a": 4, "Cianotoxinas": 8}
 PARAM = {  # nome no controle mensal -> nome no plano de amostragem
     "Cloro Residual Livre (mg/L)": "Residual de Desinfetante",
     "Cloro Residual Combinado (mg/L)": "Residual de Desinfetante",
@@ -46,6 +51,7 @@ PARAM = {  # nome no controle mensal -> nome no plano de amostragem
 def arquivos():
     yield "cadastro_populacao_abastecida"
     yield "cadastro_tratamento_de_agua"
+    yield "controle_mensal_demais_parametros"  # um arquivo só, com todos os anos
     for ano in ANOS:
         yield f"controle_mensal_plano_amostragem_{ano}"
         yield f"controle_mensal_parametros_basicos_{ano}"
@@ -128,6 +134,7 @@ def montar():
         "ano": cad.NU_ANO.astype(int), "forma": cad.NU_SOLUCAO_ABASTECIMENTO, "cod_ibge": cad.CO_MUNICIPIO_IBGE.str[:6],
         "nome": cad.NO_SOLUCAO_ABASTECIMENTO, "tipo": cad.TP_ABASTECIMENTO, "municipio": cad.NO_MUNICIPIO,
         "responsavel": cad.NO_EMPRESA, "cnpj": cnpj(cad.NU_CNPJ), "populacao": num(cad.NU_VALOR_POPULACAO_ESTIMADA),
+        "superficial": cad.CAPTACAO_SUPERFICIAL == "Sim",
     }).drop_duplicates(chave, keep="last").assign(cadastrada=True)
 
     # Exigido: plano de amostragem do SISAGUA (total anual de análises por ponto e parâmetro)
@@ -174,10 +181,29 @@ def montar():
     cmp.columns = chave + ["ponto", "parametro"] + [f"m{m:02d}" for m in range(1, 13)] + ["exigido_mes"]
     cmp = cmp[chave + ["ponto", "parametro", "exigido_mes"] + [f"m{m:02d}" for m in range(1, 13)]]
 
-    # Controle semestral: houve envio no 1º/2º semestre?
+    # Controle semestral: por grupo e semestre, 0 = nada; 1 = lançado como semestral;
+    # 2 ou 3 = só no 1º ou no 2º trimestre do semestre; 4 = nos dois trimestres
     se = ler("controle_semestral").rename(columns={"NU_SOLUCAO_ABASTECIMENTO": "forma"})
     se = se.assign(ano=se.NU_ANO.astype(int), cod_ibge=se.CO_MUNICIPIO_IBGE.str[:6])
-    semestral = se.groupby(chave).NU_SEMESTRE.agg(lambda s: ("1" if "1" in set(s) else "0") + ("1" if "2" in set(s) else "0"))
+    se["grupo"] = se.GRUPO_PARAMETROS.map(GRUPO_SEM).where(se.PT_MONITORAMENTO != "PONTO DE CAPTAÇÃO", "bruta")
+
+    def trimestres(t):
+        t = set(t.dropna())
+        return "4" if len(t) == 2 else "2" if "PRIMEIRO_TRIMESTRE" in t else "3" if "SEGUNDO_TRIMESTRE" in t else "1"
+    ordem = pd.MultiIndex.from_tuples([(g, s) for g in dict.fromkeys(GRUPO_SEM.values()) | {"bruta": None} for s in ("1", "2")])
+    semestral = (se.dropna(subset=["grupo"]).groupby(chave + ["grupo", "NU_SEMESTRE"]).TP_TRIMESTRE.agg(trimestres)
+                 .unstack(["grupo", "NU_SEMESTRE"]).reindex(columns=ordem).fillna("0").agg("".join, axis=1))
+    # Produtos secundários da desinfecção: o semestral traz o bimestre (1º a 3º) dentro de cada semestre
+    psd = se[se.GRUPO_PARAMETROS.str.contains("Bimestre", na=False)]
+    psd = psd.assign(bim=(psd.NU_SEMESTRE.astype(int) - 1) * 3 + psd.GRUPO_PARAMETROS.str.extract(r"(\d)º Bimestre")[0].astype(int))
+    bimestres = psd.groupby(chave).bim.agg(lambda b: "".join("1" if i in set(b) else "0" for i in range(1, 7)))
+
+    # Manancial (controle mensal - demais parâmetros): por mês, soma de bits de quais análises vieram
+    dp = ler("controle_mensal_demais_parametros").rename(columns={"NU_SOLUCAO_ABASTECIMENTO": "forma"})
+    dp = dp.assign(ano=dp.NU_ANO.astype(int), mes=dp.NU_MES.astype(int), cod_ibge=dp.CO_MUNICIPIO_IBGE.str[:6])
+    dp = dp[dp.ano.isin(ANOS)].assign(bit=dp.PARAMETRO.map(BIT_MANANCIAL).fillna(0).astype(int))
+    manancial = (dp.groupby(chave + ["mes"]).bit.agg(lambda b: int(b.unique().sum())).unstack("mes")
+                 .reindex(columns=range(1, 13)).fillna(0).astype(int).apply(lambda r: "".join(format(v, "x") for v in r), axis=1))
 
     # Formas que aparecem no plano ou no controle sem estar no cadastro do ano entram com os dados que trazem
     extra = pd.concat([
@@ -194,10 +220,14 @@ def montar():
     formas = (formas.set_index(chave)
               .join(pd.Series(True, index=exig.index.droplevel([3, 4]).unique(), name="tem_plano"))
               .join(a14[["plano_abaixo_anexo14", "plano_coliformes_rede", "minimo_anexo14", "populacao_plano"]])
-              .join(envio).join(semestral.rename("semestral")).reset_index())
+              .join(envio).join(semestral.rename("semestral_grupos")).join(bimestres.rename("bimestres"))
+              .join(manancial.rename("manancial")).reset_index())
     formas["tem_plano"] = formas.tem_plano.eq(True)
     formas["envio"] = formas.envio.fillna("0" * 12)
-    formas["semestral"] = formas.semestral.fillna("00")
+    formas["semestral_grupos"] = formas.semestral_grupos.fillna("0" * 12)
+    formas["bimestres"] = formas.bimestres.fillna("0" * 6)
+    formas["manancial"] = formas.manancial.fillna("0" * 12)
+    formas["superficial"] = formas.superficial.eq(True)
     formas["plano_abaixo_anexo14"] = formas.plano_abaixo_anexo14.astype("boolean")
     formas = formas.sort_values(chave)
 
@@ -215,6 +245,8 @@ def montar():
     assert not formas.responsavel.str.contains(r"\b\d{11}\b", na=False).any(), "sobrou número com cara de CPF"
     assert (cmp[[f"m{m:02d}" for m in range(1, 13)]].max(axis=1) <= cmp.exigido_mes + 0.01).all()
     assert anexo14(2775) == 5 and anexo14(12679) == 13 and anexo14(63199) == 57 and anexo14(2_000_000) == 344
+    assert formas.semestral_grupos.str.len().eq(12).all() and formas.bimestres.str.len().eq(6).all()
+    assert formas.manancial.str.fullmatch("[0-9a-f]{12}").all()
     assert anexo14(12484, para_cima=False) == 12 and anexo14(489, para_cima=False) == 5 and anexo14(8584, para_cima=False) == 10
 
     SAIDA.mkdir(exist_ok=True)
